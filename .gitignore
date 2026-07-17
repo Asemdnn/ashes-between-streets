@@ -1,0 +1,16 @@
+# Godot editor/cache files
+.godot/
+
+# Local engine binary
+Godot_v4.7.1-stable_win64.exe
+Godot_*.exe
+
+# Export output
+builds/
+exports/
+*.pck
+*.zip
+
+# OS/editor noise
+Thumbs.db
+.DS_Store
