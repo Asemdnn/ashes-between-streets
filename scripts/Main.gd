@@ -86,11 +86,11 @@ var current_chapter := 0
 var mode := "map"
 var story_active := false
 var chapter_map_points: Array[Vector2] = [
-	Vector2(168, 612),
-	Vector2(365, 520),
-	Vector2(560, 358),
-	Vector2(735, 438),
-	Vector2(940, 598)
+	Vector2(78, 550),
+	Vector2(279, 517),
+	Vector2(561, 467),
+	Vector2(898, 497),
+	Vector2(1138, 581)
 ]
 
 var active_root: Node
@@ -168,7 +168,7 @@ func _show_map() -> void:
 		map_image.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		map_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		map_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		map_image.modulate = Color(0.72, 0.72, 0.68, 1.0)
+		map_image.modulate = Color(0.95, 0.95, 0.92, 1.0)
 		map_root.add_child(map_image)
 	else:
 		var bg := ColorRect.new()
@@ -177,7 +177,7 @@ func _show_map() -> void:
 		map_root.add_child(bg)
 
 	var shade := ColorRect.new()
-	shade.color = Color(0.03, 0.035, 0.035, 0.28)
+	shade.color = Color(0.03, 0.035, 0.035, 0.12)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	map_root.add_child(shade)
 
@@ -243,12 +243,12 @@ func _add_map_chapter(index: int, pos: Vector2) -> void:
 	var done := completed.has(index)
 
 	var marker := Button.new()
-	marker.position = pos - Vector2(36, 36)
-	marker.size = Vector2(72, 72)
+	marker.position = pos - Vector2(24, 24)
+	marker.size = Vector2(48, 48)
 	marker.disabled = not unlocked
-	marker.text = "%d\n%s" % [index + 1, chapter["difficulty"]]
+	marker.text = "%d" % [index + 1]
 	marker.tooltip_text = chapter["title"]
-	marker.add_theme_font_size_override("font_size", 13)
+	marker.add_theme_font_size_override("font_size", 18)
 	map_root.add_child(marker)
 
 	if unlocked:
@@ -260,7 +260,10 @@ func _add_map_chapter(index: int, pos: Vector2) -> void:
 	var label_offset := Vector2(-104, 48)
 	if pos.y > 560.0:
 		label_offset = Vector2(-104, -118)
-	label.position = pos + label_offset
+	var label_pos := pos + label_offset
+	label_pos.x = clampf(label_pos.x, 18.0, 1054.0)
+	label_pos.y = clampf(label_pos.y, 128.0, 622.0)
+	label.position = label_pos
 	label.size = Vector2(208, 84)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
