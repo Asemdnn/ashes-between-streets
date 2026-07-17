@@ -14,3 +14,7 @@ exports/
 # OS/editor noise
 Thumbs.db
 .DS_Store
+
+# Godot-generated files extracted while importing the first mission GLB
+3d assets/*.import
+3d assets/*_texture*.png
