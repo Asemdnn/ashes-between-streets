@@ -109,6 +109,10 @@ var level_hope := 3
 var level_time := 90.0
 var level_move_bounds := Rect2(Vector2(-310, -195), Vector2(620, 390))
 var interaction_hint: Label
+var mouse_destination := Vector2.ZERO
+var mouse_destination_active := false
+var queued_site_index := -1
+var destination_marker: Polygon2D
 
 
 func _ready() -> void:
@@ -125,20 +129,43 @@ func _process(delta: float) -> void:
 		_show_failure("Dawn arrives before the chapter can close. In this prototype, the level resets instead of punishing later chapters.")
 		return
 
-	var direction := Vector2.ZERO
-	direction.x = Input.get_action_strength("ui_right") - Input.get_action_strength("ui_left")
-	direction.y = Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
-	if direction.length() > 0.0:
-		player_pos += direction.normalized() * MOVE_SPEED * delta
-		player_pos.x = clampf(player_pos.x, level_move_bounds.position.x, level_move_bounds.position.x + level_move_bounds.size.x)
-		player_pos.y = clampf(player_pos.y, level_move_bounds.position.y, level_move_bounds.position.y + level_move_bounds.size.y)
-		_update_player()
-
-	if Input.is_action_just_pressed("interact"):
-		_try_interact()
+	if mouse_destination_active:
+		var distance_to_destination := player_pos.distance_to(mouse_destination)
+		if distance_to_destination <= 5.0:
+			player_pos = mouse_destination
+			mouse_destination_active = false
+			_update_destination_marker()
+			if queued_site_index >= 0:
+				_try_interact(queued_site_index)
+				queued_site_index = -1
+		else:
+			var direction := player_pos.direction_to(mouse_destination)
+			player_pos += direction * minf(MOVE_SPEED * delta, distance_to_destination)
+			player_pos.x = clampf(player_pos.x, level_move_bounds.position.x, level_move_bounds.position.x + level_move_bounds.size.x)
+			player_pos.y = clampf(player_pos.y, level_move_bounds.position.y, level_move_bounds.position.y + level_move_bounds.size.y)
+			_update_player()
 
 	_update_hud()
 	_update_hint()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if mode != "level" or story_active or level_root == null:
+		return
+	if not event is InputEventMouseButton:
+		return
+	if event.button_index != MOUSE_BUTTON_LEFT or not event.pressed:
+		return
+
+	var target := level_root.to_local(event.position)
+	target.x = clampf(target.x, level_move_bounds.position.x, level_move_bounds.position.x + level_move_bounds.size.x)
+	target.y = clampf(target.y, level_move_bounds.position.y, level_move_bounds.position.y + level_move_bounds.size.y)
+	queued_site_index = _find_site_near(target, 58.0)
+	if queued_site_index >= 0:
+		target = level_sites[queued_site_index]["pos"]
+	mouse_destination = target
+	mouse_destination_active = true
+	_update_destination_marker()
 
 
 func _clear_active() -> void:
@@ -152,6 +179,7 @@ func _clear_active() -> void:
 	hud_layer = null
 	toast_label = null
 	interaction_hint = null
+	destination_marker = null
 
 
 func _show_map() -> void:
@@ -288,6 +316,9 @@ func _start_chapter(index: int) -> void:
 	level_time = float(chapter["time"])
 	level_hope = 3
 	level_inventory = {"water": 0, "food": 0, "medicine": 0, "letters": 0}
+	mouse_destination = Vector2.ZERO
+	mouse_destination_active = false
+	queued_site_index = -1
 	level_sites = []
 	for site in chapter["sites"]:
 		var copy: Dictionary = site.duplicate(true)
@@ -342,6 +373,7 @@ func _build_level_world() -> void:
 
 	for i in level_sites.size():
 		_add_site_marker(i)
+	_create_destination_marker()
 
 	player_shadow = Polygon2D.new()
 	player_shadow.polygon = PackedVector2Array([Vector2(0, -8), Vector2(20, 0), Vector2(0, 8), Vector2(-20, 0)])
@@ -389,6 +421,7 @@ func _build_first_level_house() -> void:
 
 	for i in level_sites.size():
 		_add_site_marker(i)
+	_create_destination_marker()
 
 	player_shadow = Polygon2D.new()
 	player_shadow.polygon = PackedVector2Array([Vector2(0, -8), Vector2(20, 0), Vector2(0, 8), Vector2(-20, 0)])
@@ -509,6 +542,24 @@ func _add_site_marker(index: int) -> void:
 	level_root.add_child(label)
 
 
+func _create_destination_marker() -> void:
+	destination_marker = Polygon2D.new()
+	destination_marker.polygon = PackedVector2Array([
+		Vector2(0, -12), Vector2(12, 0), Vector2(0, 12), Vector2(-12, 0)
+	])
+	destination_marker.color = Color(0.98, 0.86, 0.44, 0.78)
+	destination_marker.z_index = 120
+	destination_marker.visible = false
+	level_root.add_child(destination_marker)
+
+
+func _update_destination_marker() -> void:
+	if destination_marker == null:
+		return
+	destination_marker.position = mouse_destination
+	destination_marker.visible = mouse_destination_active
+
+
 func _build_hud() -> void:
 	hud_layer = CanvasLayer.new()
 	add_child(hud_layer)
@@ -580,23 +631,14 @@ func _update_player() -> void:
 	player_body.z_index = int(player_pos.y) + 10
 
 
-func _try_interact() -> void:
-	var nearest_index := -1
-	var nearest_distance := 99999.0
-	for i in level_sites.size():
-		var site: Dictionary = level_sites[i]
-		if site["taken"]:
-			continue
-		var distance := player_pos.distance_to(site["pos"])
-		if distance < nearest_distance:
-			nearest_distance = distance
-			nearest_index = i
-
-	if nearest_index == -1 or nearest_distance > 62.0:
-		_toast("No reachable place to search.")
+func _try_interact(site_index: int) -> void:
+	if site_index < 0 or site_index >= level_sites.size():
 		return
 
-	var site: Dictionary = level_sites[nearest_index]
+	var site: Dictionary = level_sites[site_index]
+	if site["taken"] or player_pos.distance_to(site["pos"]) > 62.0:
+		return
+
 	var cost: Dictionary = site.get("cost", {})
 	for key in cost.keys():
 		if int(level_inventory.get(key, 0)) < int(cost[key]):
@@ -623,6 +665,20 @@ func _try_interact() -> void:
 		return
 
 	_check_chapter_complete()
+
+
+func _find_site_near(point: Vector2, radius: float) -> int:
+	var nearest_index := -1
+	var nearest_distance := radius
+	for i in level_sites.size():
+		var site: Dictionary = level_sites[i]
+		if site["taken"]:
+			continue
+		var distance := point.distance_to(site["pos"])
+		if distance <= nearest_distance:
+			nearest_distance = distance
+			nearest_index = i
+	return nearest_index
 
 
 func _check_chapter_complete() -> void:
@@ -655,9 +711,11 @@ func _update_hint() -> void:
 			nearest_name = site["name"]
 
 	if nearest_distance <= 62.0:
-		interaction_hint.text = "Press E: %s" % nearest_name
+		interaction_hint.text = "Click to search: %s" % nearest_name
+	elif mouse_destination_active:
+		interaction_hint.text = "Walking to selected location"
 	else:
-		interaction_hint.text = "WASD or arrows to move"
+		interaction_hint.text = "Click a place to move"
 
 
 func _toast(text: String) -> void:

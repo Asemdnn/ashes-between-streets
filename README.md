@@ -12,9 +12,9 @@ A Godot 4 prototype for a 2.5D civilian war-survival story game.
 
 ## Controls
 
-- Move: WASD or arrow keys.
-- Interact: E.
-- Return to chapter map: Map button.
+- Map: Click a chapter marker.
+- Mission: Click a location to walk there; click a site to search it.
+- Return to chapter map: Click the Map button.
 
 ## Current vertical slice
 
