@@ -19,7 +19,7 @@ var chapters: Array[Dictionary] = [
 		"sites": [
 			{"name": "Kitchen pipe", "item": "water", "amount": 1, "pos": Vector2(-250, 185), "text": "Cold drops gather beneath the kitchen arch, slow enough to count."},
 			{"name": "Rooftop barrel", "item": "water", "amount": 1, "pos": Vector2(-190, -245), "text": "Rainwater waits in a rooftop barrel above the sleeping rooms."},
-			{"name": "Empty cupboard", "item": "hope", "amount": -1, "pos": Vector2(375, -130), "text": "Only jars and folded cloth. Yara recognizes the silence of a used-up home."}
+			{"name": "Empty cupboard", "item": "hope", "amount": 0, "pos": Vector2(375, -130), "text": "Only jars and folded cloth. Yara recognizes the silence of a used-up home.", "hide": true}
 		]
 	},
 	{
@@ -113,6 +113,13 @@ var mouse_destination := Vector2.ZERO
 var mouse_destination_active := false
 var queued_site_index := -1
 var destination_marker: Polygon2D
+var player_hidden := false
+var patrol_path: Array[Vector2] = []
+var patrol_target_index := 0
+var patrol_pos := Vector2.ZERO
+var patrol_speed := 72.0
+var patrol_body: Polygon2D
+var patrol_shadow: Polygon2D
 
 
 func _ready() -> void:
@@ -128,6 +135,8 @@ func _process(delta: float) -> void:
 	if level_time <= 0.0:
 		_show_failure("Dawn arrives before the chapter can close. In this prototype, the level resets instead of punishing later chapters.")
 		return
+
+	_update_patrol(delta)
 
 	if mouse_destination_active:
 		var distance_to_destination := player_pos.distance_to(mouse_destination)
@@ -163,6 +172,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	queued_site_index = _find_site_near(target, 58.0)
 	if queued_site_index >= 0:
 		target = level_sites[queued_site_index]["pos"]
+	if queued_site_index < 0 or not bool(level_sites[queued_site_index].get("hide", false)):
+		player_hidden = false
+		_update_player()
 	mouse_destination = target
 	mouse_destination_active = true
 	_update_destination_marker()
@@ -180,6 +192,8 @@ func _clear_active() -> void:
 	toast_label = null
 	interaction_hint = null
 	destination_marker = null
+	patrol_body = null
+	patrol_shadow = null
 
 
 func _show_map() -> void:
@@ -319,6 +333,7 @@ func _start_chapter(index: int) -> void:
 	mouse_destination = Vector2.ZERO
 	mouse_destination_active = false
 	queued_site_index = -1
+	player_hidden = false
 	level_sites = []
 	for site in chapter["sites"]:
 		var copy: Dictionary = site.duplicate(true)
@@ -386,6 +401,7 @@ func _build_level_world() -> void:
 	level_root.add_child(player_body)
 
 	player_pos = Vector2(0, 20)
+	_create_patrol()
 	_update_player()
 
 
@@ -434,6 +450,7 @@ func _build_first_level_house() -> void:
 	level_root.add_child(player_body)
 
 	player_pos = Vector2(-395, 150)
+	_create_patrol()
 	_update_player()
 
 
@@ -627,8 +644,65 @@ func _update_hud() -> void:
 func _update_player() -> void:
 	player_shadow.position = player_pos + Vector2(0, 27)
 	player_shadow.z_index = int(player_pos.y) + 8
+	player_shadow.visible = not player_hidden
 	player_body.position = player_pos
 	player_body.z_index = int(player_pos.y) + 10
+	player_body.visible = not player_hidden
+
+
+func _create_patrol() -> void:
+	patrol_path = [
+		Vector2(220, 130),
+		Vector2(120, -140),
+		Vector2(-40, -100),
+		Vector2(260, -20)
+	]
+	if current_chapter != 0:
+		patrol_path = [
+			Vector2(-270, 120),
+			Vector2(-120, -145),
+			Vector2(125, -150),
+			Vector2(260, 105)
+		]
+	patrol_target_index = 1
+	patrol_pos = patrol_path[0]
+
+	patrol_shadow = Polygon2D.new()
+	patrol_shadow.polygon = PackedVector2Array([Vector2(0, -8), Vector2(19, 0), Vector2(0, 8), Vector2(-19, 0)])
+	patrol_shadow.color = Color(0, 0, 0, 0.42)
+	patrol_shadow.z_index = 30
+	level_root.add_child(patrol_shadow)
+
+	patrol_body = Polygon2D.new()
+	patrol_body.polygon = PackedVector2Array([Vector2(0, -35), Vector2(16, -8), Vector2(12, 25), Vector2(-12, 25), Vector2(-16, -8)])
+	patrol_body.color = Color("#6b3e36")
+	patrol_body.z_index = 32
+	level_root.add_child(patrol_body)
+	_update_patrol_visual()
+
+
+func _update_patrol(delta: float) -> void:
+	if patrol_path.is_empty() or patrol_body == null:
+		return
+	var target := patrol_path[patrol_target_index]
+	var distance := patrol_pos.distance_to(target)
+	if distance <= 4.0:
+		patrol_target_index = (patrol_target_index + 1) % patrol_path.size()
+		target = patrol_path[patrol_target_index]
+	patrol_pos += patrol_pos.direction_to(target) * minf(patrol_speed * delta, distance)
+	_update_patrol_visual()
+
+	if not player_hidden and patrol_pos.distance_to(player_pos) <= 76.0:
+		_show_failure("A patrol turns the corner and sees Mira in the open. The house is lost for tonight; try the route again.")
+
+
+func _update_patrol_visual() -> void:
+	if patrol_body == null:
+		return
+	patrol_shadow.position = patrol_pos + Vector2(0, 27)
+	patrol_shadow.z_index = int(patrol_pos.y) + 8
+	patrol_body.position = patrol_pos
+	patrol_body.z_index = int(patrol_pos.y) + 10
 
 
 func _try_interact(site_index: int) -> void:
@@ -637,6 +711,13 @@ func _try_interact(site_index: int) -> void:
 
 	var site: Dictionary = level_sites[site_index]
 	if site["taken"] or player_pos.distance_to(site["pos"]) > 62.0:
+		return
+	if bool(site.get("hide", false)):
+		player_hidden = true
+		mouse_destination_active = false
+		_update_destination_marker()
+		_update_player()
+		_toast("Mira slips inside the cupboard. The patrol passes without seeing her.")
 		return
 
 	var cost: Dictionary = site.get("cost", {})
@@ -672,7 +753,7 @@ func _find_site_near(point: Vector2, radius: float) -> int:
 	var nearest_distance := radius
 	for i in level_sites.size():
 		var site: Dictionary = level_sites[i]
-		if site["taken"]:
+		if site["taken"] and not bool(site.get("hide", false)):
 			continue
 		var distance := point.distance_to(site["pos"])
 		if distance <= nearest_distance:
@@ -701,17 +782,21 @@ func _update_hint() -> void:
 		return
 
 	var nearest_name := ""
+	var nearest_is_hide := false
 	var nearest_distance := 99999.0
 	for site in level_sites:
-		if site["taken"]:
+		if site["taken"] and not bool(site.get("hide", false)):
 			continue
 		var distance := player_pos.distance_to(site["pos"])
 		if distance < nearest_distance:
 			nearest_distance = distance
 			nearest_name = site["name"]
+			nearest_is_hide = bool(site.get("hide", false))
 
 	if nearest_distance <= 62.0:
-		interaction_hint.text = "Click to search: %s" % nearest_name
+		interaction_hint.text = ("Click to hide: " if nearest_is_hide else "Click to search: ") + nearest_name
+	elif player_hidden:
+		interaction_hint.text = "Hidden"
 	elif mouse_destination_active:
 		interaction_hint.text = "Walking to selected location"
 	else:

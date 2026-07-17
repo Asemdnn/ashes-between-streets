@@ -9,6 +9,7 @@ A Godot 4 prototype for a 2.5D civilian war-survival story game.
 - Supplies are local to a chapter. Water, food, medicine, and letters do not carry forward.
 - Hard and very hard chapters appear periodically and use tighter time, harsher hope loss, and larger requirements.
 - The theme is civilian struggle: thirst, hunger, medicine, memory, family, and impossible choices.
+- Missions use a mouse-only point-and-click stealth loop: plan a route, search locations, hide from patrols, and retry if you are caught.
 
 ## Controls
 
@@ -26,7 +27,7 @@ The prototype contains five chapters:
 4. Letters Under Bricks
 5. The Well Road
 
-The first pass focuses on the campaign loop and emotional pacing. Combat is intentionally absent; the pressure comes from scarcity, time, and story consequences.
+The first pass focuses on the campaign loop and emotional pacing. Combat is intentionally absent; the pressure comes from scarcity, time, patrol routes, hiding, and story consequences.
 
 Chapter 1 uses `3d assets/first mission.glb` as its interactive 3D mission module, with interaction points placed in the kitchen, rooftop, and storage room. The cutaway-house image remains as a fallback while the 3D asset is importing.
 
