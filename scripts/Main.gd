@@ -5,6 +5,7 @@ const TILE_H := 48.0
 const MOVE_SPEED := 190.0
 const MAP_TEXTURE_PATH := "res://art/campaign_map.png"
 const FIRST_LEVEL_TEXTURE_PATH := "res://art/level_01_house.png"
+const FIRST_MISSION_SCENE_PATH := "res://3d assets/first mission.glb"
 
 var chapters: Array[Dictionary] = [
 	{
@@ -366,17 +367,18 @@ func _build_first_level_house() -> void:
 	bg.z_index = -300
 	level_root.add_child(bg)
 
-	var texture := _load_texture(FIRST_LEVEL_TEXTURE_PATH)
-	if texture != null:
-		var house := Sprite2D.new()
-		house.texture = texture
-		house.centered = true
-		var viewport_size := get_viewport_rect().size
-		var scale_factor := maxf(viewport_size.x / float(texture.get_width()), viewport_size.y / float(texture.get_height()))
-		house.scale = Vector2(scale_factor, scale_factor)
-		house.position = Vector2.ZERO
-		house.z_index = -200
-		level_root.add_child(house)
+	if not _build_first_mission_3d():
+		var texture := _load_texture(FIRST_LEVEL_TEXTURE_PATH)
+		if texture != null:
+			var house := Sprite2D.new()
+			house.texture = texture
+			house.centered = true
+			var viewport_size := get_viewport_rect().size
+			var scale_factor := maxf(viewport_size.x / float(texture.get_width()), viewport_size.y / float(texture.get_height()))
+			house.scale = Vector2(scale_factor, scale_factor)
+			house.position = Vector2.ZERO
+			house.z_index = -200
+			level_root.add_child(house)
 
 	var dusk := ColorRect.new()
 	dusk.color = Color(0.04, 0.045, 0.045, 0.08)
@@ -400,6 +402,59 @@ func _build_first_level_house() -> void:
 
 	player_pos = Vector2(-395, 150)
 	_update_player()
+
+
+func _build_first_mission_3d() -> bool:
+	var packed_scene := ResourceLoader.load(FIRST_MISSION_SCENE_PATH, "PackedScene") as PackedScene
+	if packed_scene == null:
+		push_warning("Could not load first mission scene: %s" % FIRST_MISSION_SCENE_PATH)
+		return false
+
+	var viewport_size := get_viewport_rect().size
+	var mission_container := SubViewportContainer.new()
+	mission_container.position = -viewport_size * 0.5
+	mission_container.size = viewport_size
+	mission_container.stretch = true
+	mission_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mission_container.z_index = -200
+	level_root.add_child(mission_container)
+
+	var mission_view := SubViewport.new()
+	mission_view.size = Vector2i(viewport_size)
+	mission_view.transparent_bg = true
+	mission_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	mission_view.own_world_3d = true
+	mission_container.add_child(mission_view)
+
+	var camera := Camera3D.new()
+	camera.position = Vector3(0.0, 0.45, 3.0)
+	camera.fov = 38.0
+	camera.current = true
+	mission_view.add_child(camera)
+	camera.look_at(Vector3(0.0, 0.0, 0.0), Vector3.UP)
+
+	var model := packed_scene.instantiate() as Node3D
+	if model == null:
+		push_warning("First mission scene did not contain a Node3D root")
+		mission_container.queue_free()
+		return false
+	model.scale = Vector3(6.0, 6.0, 6.0)
+	model.position = Vector3(0.0, -0.35, 0.0)
+	mission_view.add_child(model)
+
+	var light := DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-35.0, -25.0, 0.0)
+	light.light_energy = 1.2
+	light.shadow_enabled = true
+	mission_view.add_child(light)
+
+	var fill := OmniLight3D.new()
+	fill.position = Vector3(-1.5, 1.8, 2.0)
+	fill.light_color = Color("#d7c6a4")
+	fill.omni_range = 8.0
+	fill.light_energy = 2.0
+	mission_view.add_child(fill)
+	return true
 
 
 func _iso_to_screen(grid: Vector2) -> Vector2:
