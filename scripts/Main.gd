@@ -109,6 +109,7 @@ var interaction_hint: Label
 
 
 func _ready() -> void:
+	get_viewport().size_changed.connect(_sync_map_root_size)
 	_show_map()
 
 
@@ -156,7 +157,7 @@ func _show_map() -> void:
 	_clear_active()
 
 	map_root = Control.new()
-	map_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_sync_control_to_viewport(map_root)
 	active_root = map_root
 	add_child(map_root)
 
@@ -164,7 +165,7 @@ func _show_map() -> void:
 	if map_texture != null:
 		var map_image := TextureRect.new()
 		map_image.texture = map_texture
-		map_image.set_anchors_preset(Control.PRESET_FULL_RECT)
+		map_image.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		map_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		map_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		map_image.modulate = Color(0.72, 0.72, 0.68, 1.0)
@@ -172,12 +173,12 @@ func _show_map() -> void:
 	else:
 		var bg := ColorRect.new()
 		bg.color = Color("#141516")
-		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		map_root.add_child(bg)
 
 	var shade := ColorRect.new()
 	shade.color = Color(0.03, 0.035, 0.035, 0.28)
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	map_root.add_child(shade)
 
 	var title := Label.new()
@@ -211,6 +212,16 @@ func _show_map() -> void:
 	footer.size = Vector2(860, 28)
 	footer.add_theme_font_size_override("font_size", 16)
 	map_root.add_child(footer)
+
+
+func _sync_control_to_viewport(control: Control) -> void:
+	control.position = Vector2.ZERO
+	control.size = get_viewport_rect().size
+
+
+func _sync_map_root_size() -> void:
+	if map_root != null:
+		_sync_control_to_viewport(map_root)
 
 
 func _load_map_texture() -> Texture2D:
