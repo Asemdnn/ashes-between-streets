@@ -4,6 +4,7 @@ const TILE_W := 96.0
 const TILE_H := 48.0
 const MOVE_SPEED := 190.0
 const MAP_TEXTURE_PATH := "res://art/campaign_map.png"
+const FIRST_LEVEL_TEXTURE_PATH := "res://art/level_01_house.png"
 
 var chapters: Array[Dictionary] = [
 	{
@@ -15,9 +16,9 @@ var chapters: Array[Dictionary] = [
 		"time": 95,
 		"required": {"water": 2},
 		"sites": [
-			{"name": "Split pipe", "item": "water", "amount": 1, "pos": Vector2(-150, -40), "text": "Cold drops gather in a dented cooking pot."},
-			{"name": "Rooftop barrel", "item": "water", "amount": 1, "pos": Vector2(140, -90), "text": "Rainwater under ash. Bitter, but drinkable."},
-			{"name": "Empty cupboard", "item": "hope", "amount": -1, "pos": Vector2(30, 110), "text": "Only plates. Yara recognizes the pattern from her sister's kitchen."}
+			{"name": "Kitchen pipe", "item": "water", "amount": 1, "pos": Vector2(-250, 185), "text": "Cold drops gather beneath the kitchen arch, slow enough to count."},
+			{"name": "Rooftop barrel", "item": "water", "amount": 1, "pos": Vector2(-190, -245), "text": "Rainwater waits in a rooftop barrel above the sleeping rooms."},
+			{"name": "Empty cupboard", "item": "hope", "amount": -1, "pos": Vector2(375, -130), "text": "Only jars and folded cloth. Yara recognizes the silence of a used-up home."}
 		]
 	},
 	{
@@ -105,6 +106,7 @@ var level_sites: Array[Dictionary] = []
 var level_inventory: Dictionary = {}
 var level_hope := 3
 var level_time := 90.0
+var level_move_bounds := Rect2(Vector2(-310, -195), Vector2(620, 390))
 var interaction_hint: Label
 
 
@@ -127,8 +129,8 @@ func _process(delta: float) -> void:
 	direction.y = Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
 	if direction.length() > 0.0:
 		player_pos += direction.normalized() * MOVE_SPEED * delta
-		player_pos.x = clampf(player_pos.x, -310.0, 310.0)
-		player_pos.y = clampf(player_pos.y, -195.0, 195.0)
+		player_pos.x = clampf(player_pos.x, level_move_bounds.position.x, level_move_bounds.position.x + level_move_bounds.size.x)
+		player_pos.y = clampf(player_pos.y, level_move_bounds.position.y, level_move_bounds.position.y + level_move_bounds.size.y)
 		_update_player()
 
 	if Input.is_action_just_pressed("interact"):
@@ -225,14 +227,18 @@ func _sync_map_root_size() -> void:
 
 
 func _load_map_texture() -> Texture2D:
-	var imported_texture := ResourceLoader.load(MAP_TEXTURE_PATH, "Texture2D") as Texture2D
+	return _load_texture(MAP_TEXTURE_PATH)
+
+
+func _load_texture(path: String) -> Texture2D:
+	var imported_texture := ResourceLoader.load(path, "Texture2D") as Texture2D
 	if imported_texture != null:
 		return imported_texture
 
 	var image := Image.new()
-	var error := image.load(MAP_TEXTURE_PATH)
+	var error := image.load(path)
 	if error != OK:
-		push_warning("Could not load campaign map image: %s" % MAP_TEXTURE_PATH)
+		push_warning("Could not load image: %s" % path)
 		return null
 	return ImageTexture.create_from_image(image)
 
@@ -288,7 +294,7 @@ func _start_chapter(index: int) -> void:
 		level_sites.append(copy)
 
 	level_root = Node2D.new()
-	level_root.position = Vector2(640, 370)
+	level_root.position = get_viewport_rect().size * 0.5
 	active_root = level_root
 	add_child(level_root)
 
@@ -301,6 +307,12 @@ func _start_chapter(index: int) -> void:
 
 
 func _build_level_world() -> void:
+	if current_chapter == 0:
+		_build_first_level_house()
+		return
+
+	level_move_bounds = Rect2(Vector2(-310, -195), Vector2(620, 390))
+
 	var bg := ColorRect.new()
 	bg.color = Color("#101112")
 	bg.position = Vector2(-2000, -2000)
@@ -341,6 +353,52 @@ func _build_level_world() -> void:
 	level_root.add_child(player_body)
 
 	player_pos = Vector2(0, 20)
+	_update_player()
+
+
+func _build_first_level_house() -> void:
+	level_move_bounds = Rect2(Vector2(-535, -260), Vector2(1070, 520))
+
+	var bg := ColorRect.new()
+	bg.color = Color("#0d1112")
+	bg.position = Vector2(-2000, -2000)
+	bg.size = Vector2(4000, 4000)
+	bg.z_index = -300
+	level_root.add_child(bg)
+
+	var texture := _load_texture(FIRST_LEVEL_TEXTURE_PATH)
+	if texture != null:
+		var house := Sprite2D.new()
+		house.texture = texture
+		house.centered = true
+		var viewport_size := get_viewport_rect().size
+		var scale_factor := maxf(viewport_size.x / float(texture.get_width()), viewport_size.y / float(texture.get_height()))
+		house.scale = Vector2(scale_factor, scale_factor)
+		house.position = Vector2.ZERO
+		house.z_index = -200
+		level_root.add_child(house)
+
+	var dusk := ColorRect.new()
+	dusk.color = Color(0.04, 0.045, 0.045, 0.08)
+	dusk.position = Vector2(-2000, -2000)
+	dusk.size = Vector2(4000, 4000)
+	dusk.z_index = -100
+	level_root.add_child(dusk)
+
+	for i in level_sites.size():
+		_add_site_marker(i)
+
+	player_shadow = Polygon2D.new()
+	player_shadow.polygon = PackedVector2Array([Vector2(0, -8), Vector2(20, 0), Vector2(0, 8), Vector2(-20, 0)])
+	player_shadow.color = Color(0, 0, 0, 0.35)
+	level_root.add_child(player_shadow)
+
+	player_body = Polygon2D.new()
+	player_body.polygon = PackedVector2Array([Vector2(0, -34), Vector2(17, -5), Vector2(10, 26), Vector2(-11, 26), Vector2(-18, -5)])
+	player_body.color = Color("#b8b0a0")
+	level_root.add_child(player_body)
+
+	player_pos = Vector2(-395, 150)
 	_update_player()
 
 
