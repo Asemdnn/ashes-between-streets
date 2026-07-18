@@ -31,6 +31,8 @@ The first pass focuses on the campaign loop and emotional pacing. Combat is inte
 
 Chapter 1 uses `3d assets/first mission.glb` as its interactive 3D mission module, with interaction points placed in the kitchen, rooftop, and storage room. The cutaway-house image remains as a fallback while the 3D asset is importing.
 
+The playable survivor uses `3d assets/main character.fbx` in the 3D mission viewport.
+
 ## Campaign map
 
 The campaign map uses `art/campaign_map.png`.

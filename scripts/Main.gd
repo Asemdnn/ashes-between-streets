@@ -6,6 +6,7 @@ const MOVE_SPEED := 190.0
 const MAP_TEXTURE_PATH := "res://art/campaign_map.png"
 const FIRST_LEVEL_TEXTURE_PATH := "res://art/level_01_house.png"
 const FIRST_MISSION_SCENE_PATH := "res://3d assets/first mission.glb"
+const MAIN_CHARACTER_SCENE_PATH := "res://3d assets/main character.fbx"
 
 var chapters: Array[Dictionary] = [
 	{
@@ -102,6 +103,7 @@ var hud_layer: CanvasLayer
 var toast_label: Label
 var player_body: Polygon2D
 var player_shadow: Polygon2D
+var player_model: Node3D
 var player_pos := Vector2.ZERO
 var level_sites: Array[Dictionary] = []
 var level_inventory: Dictionary = {}
@@ -192,6 +194,7 @@ func _clear_active() -> void:
 	toast_label = null
 	interaction_hint = null
 	destination_marker = null
+	player_model = null
 	patrol_body = null
 	patrol_shadow = null
 
@@ -390,15 +393,7 @@ func _build_level_world() -> void:
 		_add_site_marker(i)
 	_create_destination_marker()
 
-	player_shadow = Polygon2D.new()
-	player_shadow.polygon = PackedVector2Array([Vector2(0, -8), Vector2(20, 0), Vector2(0, 8), Vector2(-20, 0)])
-	player_shadow.color = Color(0, 0, 0, 0.35)
-	level_root.add_child(player_shadow)
-
-	player_body = Polygon2D.new()
-	player_body.polygon = PackedVector2Array([Vector2(0, -34), Vector2(17, -5), Vector2(10, 26), Vector2(-11, 26), Vector2(-18, -5)])
-	player_body.color = Color("#b8b0a0")
-	level_root.add_child(player_body)
+	_create_2d_player_fallback()
 
 	player_pos = Vector2(0, 20)
 	_create_patrol()
@@ -439,15 +434,8 @@ func _build_first_level_house() -> void:
 		_add_site_marker(i)
 	_create_destination_marker()
 
-	player_shadow = Polygon2D.new()
-	player_shadow.polygon = PackedVector2Array([Vector2(0, -8), Vector2(20, 0), Vector2(0, 8), Vector2(-20, 0)])
-	player_shadow.color = Color(0, 0, 0, 0.35)
-	level_root.add_child(player_shadow)
-
-	player_body = Polygon2D.new()
-	player_body.polygon = PackedVector2Array([Vector2(0, -34), Vector2(17, -5), Vector2(10, 26), Vector2(-11, 26), Vector2(-18, -5)])
-	player_body.color = Color("#b8b0a0")
-	level_root.add_child(player_body)
+	if player_model == null:
+		_create_2d_player_fallback()
 
 	player_pos = Vector2(-395, 150)
 	_create_patrol()
@@ -477,8 +465,9 @@ func _build_first_mission_3d() -> bool:
 	mission_container.add_child(mission_view)
 
 	var camera := Camera3D.new()
-	camera.position = Vector3(0.0, 0.45, 3.0)
-	camera.fov = 38.0
+	camera.position = Vector3(0.0, 0.0, 6.0)
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 6.5
 	camera.current = true
 	mission_view.add_child(camera)
 	camera.look_at(Vector3(0.0, 0.0, 0.0), Vector3.UP)
@@ -491,6 +480,16 @@ func _build_first_mission_3d() -> bool:
 	model.scale = Vector3(6.0, 6.0, 6.0)
 	model.position = Vector3(0.0, -0.35, 0.0)
 	mission_view.add_child(model)
+
+	var character_scene := ResourceLoader.load(MAIN_CHARACTER_SCENE_PATH, "PackedScene") as PackedScene
+	if character_scene != null:
+		player_model = character_scene.instantiate() as Node3D
+		if player_model != null:
+			player_model.scale = Vector3(1.45, 1.45, 1.45)
+			player_model.position = _player_3d_position()
+			mission_view.add_child(player_model)
+	else:
+		push_warning("Could not load main character scene: %s" % MAIN_CHARACTER_SCENE_PATH)
 
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-35.0, -25.0, 0.0)
@@ -642,12 +641,33 @@ func _update_hud() -> void:
 
 
 func _update_player() -> void:
-	player_shadow.position = player_pos + Vector2(0, 27)
-	player_shadow.z_index = int(player_pos.y) + 8
-	player_shadow.visible = not player_hidden
-	player_body.position = player_pos
-	player_body.z_index = int(player_pos.y) + 10
-	player_body.visible = not player_hidden
+	if player_model != null:
+		player_model.position = _player_3d_position()
+		player_model.visible = not player_hidden
+	if player_shadow != null:
+		player_shadow.position = player_pos + Vector2(0, 27)
+		player_shadow.z_index = int(player_pos.y) + 8
+		player_shadow.visible = not player_hidden
+	if player_body != null:
+		player_body.position = player_pos
+		player_body.z_index = int(player_pos.y) + 10
+		player_body.visible = not player_hidden
+
+
+func _player_3d_position() -> Vector3:
+	return Vector3(player_pos.x / 100.0, -player_pos.y / 100.0 - 0.7, 1.8)
+
+
+func _create_2d_player_fallback() -> void:
+	player_shadow = Polygon2D.new()
+	player_shadow.polygon = PackedVector2Array([Vector2(0, -8), Vector2(20, 0), Vector2(0, 8), Vector2(-20, 0)])
+	player_shadow.color = Color(0, 0, 0, 0.35)
+	level_root.add_child(player_shadow)
+
+	player_body = Polygon2D.new()
+	player_body.polygon = PackedVector2Array([Vector2(0, -34), Vector2(17, -5), Vector2(10, 26), Vector2(-11, 26), Vector2(-18, -5)])
+	player_body.color = Color("#b8b0a0")
+	level_root.add_child(player_body)
 
 
 func _create_patrol() -> void:

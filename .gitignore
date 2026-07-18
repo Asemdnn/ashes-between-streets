@@ -18,3 +18,4 @@ Thumbs.db
 # Godot-generated files extracted while importing the first mission GLB
 3d assets/*.import
 3d assets/*_texture*.png
+3d assets/main character_*.png
